@@ -1,0 +1,139 @@
+---
+title: 'Examples: Create two statistical tables'
+author: "Grace Zhou"
+output:
+  html_document: 
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    number_sections: true
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r setup, echo=FALSE,warning=FALSE,message=FALSE}
+knitr::opts_chunk$set(cache = TRUE)
+
+library(flextable)
+library(dplyr)
+library(tibble)
+library(rstan)
+
+```
+
+
+# TABLE 1: How to merge cells for headers?
+
+```{r table_example1,out.width="80%", fig.cap="Example for Table 1",echo=FALSE,}
+
+knitr::include_graphics("TABLE1.png")
+
+```
+
+```{r table1_1}
+# Make dummy dataset
+dummy=data.frame(subject=rep(1:5,each=4),cohort=c(rep(1,12),rep(2,8)), treatment=rep(c(0,1),each=2,time=5),event=rbinom(20,size=1,prob=0.5))
+
+N1=dummy %>%
+  group_by(cohort,treatment) %>%
+  tally()
+
+N=dummy %>%
+  group_by(cohort,treatment) %>%
+  tally(n_distinct(subject))
+
+n=dummy %>%
+  group_by(cohort,treatment) %>%
+  tally(sum(event))
+
+
+# Fill info. into data.frame
+tab<-c('N(# of subject)',N$n[1],N$n[2],N$n[3],N$n[4])
+tab<-rbind(tab,c('N1(# of obs)',N1$n[1],N1$n[2],N1$n[3],N1$n[4]))
+tab<-rbind(tab,c('Event, n(%)', paste0(n$n[1],'(',round(n$n[1]/N1$n[1],4)*100,'%)'),
+                 paste0(n$n[2],'(',round(n$n[2]/N1$n[2],4)*100,'%)'),
+                 paste0(n$n[3],'(',round(n$n[3]/N1$n[3],4)*100,'%)'),
+                 paste0(n$n[4],'(',round(n$n[4]/N1$n[4],4)*100,'%)'))) 
+rownames(tab)<-NULL
+datTab<-as.data.frame(tab)
+datTab
+```
+
+ 
+```{r table1_2}
+ftab0=flextable(datTab)
+ftab0
+
+#Function 'autofit' is recommended when we have long strings in a cell. 
+ftab=autofit(ftab0)  
+ftab
+```
+
+
+```{r table1_3}
+# Delete header first
+ft=delete_part(ftab,part='header')
+
+# Add a line of row
+ft <- add_header(x = ft, V1='',V2='Pre',V3='Post',V4='Pre',V5='Post', top = F )
+
+# Add another line of row at the top position
+ft <- add_header(ft, V2 = "Cohort 1",
+                 V3 = "Cohort 1", V4 = "Cohort 2",
+                 V5 = "Cohort 2", top = TRUE )
+
+ft
+```
+
+
+```{r table1_4}
+# Merge horizontally when there are identical values
+ft <- merge_h(ft, part = "header")
+ft
+```
+
+```{r table1_5}
+# Assign a theme to create final table
+ft.final=align(theme_booktabs(ft),align='center',part='all')
+ft.final
+```
+
+
+# TABLE 2: How to create table from a stanfit result?
+
+```{r table_example2,out.width="80%", fig.cap="Example for Table 2",echo=FALSE}
+knitr::include_graphics("TABLE2.png")
+```
+
+
+```{r table2_1}
+# Read stan results 
+fit<-readRDS('stanfit.rds')
+rstan::summary(fit, pars = c('beta1','beta2','xi'), probs=c(0.025,0.975))$summary
+```
+```{r table2_2}
+Est=rstan::summary(fit, pars = c('beta1','beta2','xi'), probs=c(0.025,0.975))$summary
+True=c(1,2,0)
+# Add a column for true values
+GEV.tab=cbind(True,Est)
+GEV.tab
+```
+
+```{r table2_3}
+# Apply flextable function
+ft<-GEV.tab %>%
+     as.data.frame() %>% 
+     tibble::rownames_to_column('Parameter') %>% 
+     flextable()
+
+# Round digits
+colformat_num(
+     x = ft, j = 2:(ncol(GEV.tab)+1),
+     big.mark=",", digits = 2, na_str = "N/A")
+```
+
+
+# Reference
+
+* https://davidgohel.github.io/flextable/reference/add_header.html
+* https://dplyr.tidyverse.org/
+* https://mc-stan.org/users/interfaces/rstan
